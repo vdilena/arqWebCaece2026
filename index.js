@@ -20,7 +20,7 @@ mongoose
 
         // Levantamos el server
         app.listen(PORT, () => {
-            console.log(`El servidor esta ejecutandose en el puerto ${PORT}`)
+            console.log(`El servidor esta ejecutandose en el puerto ${PORT} y esta arriba`)
         })
     })
     .catch((error) => console.log(error))
@@ -34,6 +34,18 @@ const alumnoSchema = mongoose.Schema({
 })
 
 const AlumnoModel = mongoose.model("alumnos", alumnoSchema)
+
+app.get("/:id", async (req, res) => {
+    console.log(req.query)
+    console.log(req.params)
+    res.send("Estamos viendo la API del proyecto con parametros")
+})
+
+
+app.get("/", async (req, res) => {
+    console.log(req.query)
+    res.send("Estamos viendo la API del proyecto")
+})
 
 
 // Se obtienen los alumnos
