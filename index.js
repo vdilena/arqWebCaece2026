@@ -1,6 +1,8 @@
 import express from "express"
 import mongoose from "mongoose"
 import dotenv from "dotenv"
+import fs from "fs"
+import { parse } from "csv-parse"
 
 // Instancia de express y uso de json en express
 const app = express()
@@ -19,8 +21,33 @@ mongoose
         console.log("Se extablecio la conexion con la base de datos")
 
         // Levantamos el server
-        app.listen(PORT, () => {
+        app.listen(PORT, async () => {
             console.log(`El servidor esta ejecutandose en el puerto ${PORT} y esta arriba`)
+
+            // Cargamos los datos
+            const filas = []
+            const parser = fs
+                .createReadStream("disponibilidades_prepaga_caba.csv")
+                .pipe(
+                    parse({
+                        columns: true,
+                        delimiter: ","
+                    })
+                );
+
+            for await (const fila of parser) {
+                filas.push(fila)
+            }
+
+            //0. Crear esquemas y modelos en base a como definimos las colecciones
+            //1. Iterar el array de filas
+            //2. Analizar en cada fila los datos que tengo
+            //3. Validamos los datos antes de insertarlos
+            //4. Guardar cada una de los documentos
+            //5. Ver como guardamos las filas no validas (primero guardamos en un array todas las filas y despues las guardamos todas en un archivo)
+
+            console.log(filas[0])
+            console.log(filas[1])
         })
     })
     .catch((error) => console.log(error))

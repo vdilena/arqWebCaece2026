@@ -1,0 +1,67 @@
+disponibilidades
+    _id
+    fecha
+    hora
+    estado
+    especialista
+        especialistaId
+        nombreCompleto
+        numeroMatricula
+    especialidad
+        codigo
+        nombre
+    planesAceptados
+        codigo
+        nombre
+    clinica
+        nombre
+        comuna
+        barrio
+
+usuarios
+    _id
+    nombreCompleto
+    fechaNacimiento
+    numeroSocio
+    planContratado
+        codigo
+        nombre
+    email
+    passwordHash
+turnos
+    _id
+    disponibilidadId
+    fechaHoraAtencion
+    paciente
+        usuarioId
+        nombreCompleto
+        numeroSocio
+        email
+    especialista
+        especialistaId
+        nombreCompleto
+    especialidad
+        codigo
+        nombre
+    clinica
+        nombre
+        comuna
+        barrio
+    estado
+    fechaReserva
+    fechaCancelacion
+
+especialistas
+    _id
+    nombreCompleto
+    numeroMatricula
+    especialidad
+        codigo
+        nombre
+    planes
+        codigo
+        nombre
+    clinicas
+        nombre
+        comuna
+        barrio
