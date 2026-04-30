@@ -1,8 +1,10 @@
 import express from "express"
-import mongoose from "mongoose"
+import mongoose, { Schema } from "mongoose"
 import dotenv from "dotenv"
 import fs from "fs"
 import { parse } from "csv-parse"
+import { stringify } from 'csv-stringify'
+
 
 // Instancia de express y uso de json en express
 const app = express()
@@ -15,6 +17,23 @@ dotenv.config()
 const PORT = process.env.PORT || 8080
 const MONGOURL = process.env.MONGO_URL
 
+const camposValidos = (fila) => {
+
+    let todasLasFilasValidas = true
+    const elementosFila = Object.keys(fila)
+    Object.keys(fila).forEach(key => {
+        //console.log(key, fila[key]);
+        const elementoEvaluado = fila[key]
+        if(elementoEvaluado === "NA") {
+            //console.log("Hay dato NA!")
+            todasLasFilasValidas = false
+            return false
+        }
+    })
+
+    return todasLasFilasValidas
+}
+
 mongoose
     .connect(MONGOURL)
     .then(() => {
@@ -26,6 +45,7 @@ mongoose
 
             // Cargamos los datos
             const filas = []
+            const filasNA = []
             const parser = fs
                 .createReadStream("disponibilidades_prepaga_caba.csv")
                 .pipe(
@@ -39,15 +59,46 @@ mongoose
                 filas.push(fila)
             }
 
-            //0. Crear esquemas y modelos en base a como definimos las colecciones
             //1. Iterar el array de filas
-            //2. Analizar en cada fila los datos que tengo
-            //3. Validamos los datos antes de insertarlos
-            //4. Guardar cada una de los documentos
-            //5. Ver como guardamos las filas no validas (primero guardamos en un array todas las filas y despues las guardamos todas en un archivo)
+            for (let index = 0; index < filas.length; index++) {
 
-            console.log(filas[0])
-            console.log(filas[1])
+                const fila = filas[index];
+                const nuevaDisponibilidad = {
+                    fecha: fila["fecha"], // fecha
+                    hora: fila.hora_inicio, // hora_inicio:
+                    estado: fila.estado_disponibilidad, // estado_disponibilidad
+                    especialista: {
+                        especialista: fila.especialista,
+                        matricula: fila.matricula
+                    }, // (especialista, matricula)
+                    especialidad: fila.especialidad,
+                    planesAceptados: fila.plan, // plan
+                    clinica: fila.clinica // clinica
+                }
+
+                //console.log(`Nueva disponibilidad: ${nuevaDisponibilidad}`)
+
+
+                //3. Validamos los datos antes de insertarlos
+                const sonValidosTodosLosCampos = camposValidos(fila)
+                if (!sonValidosTodosLosCampos) {
+                    filasNA.push(fila)
+                } else {
+                    //4. Guardar cada una de los documentos
+                    await DisponibilidadModel.create(nuevaDisponibilidad);
+                }
+
+            }
+
+            console.log("Termino de cargar todos los documentos de disponibilidades!")
+            //5. Ver como guardamos las filas no validas (primero guardamos en un array todas las filas y despues las guardamos todas en un archivo)
+            // Cargamos filas con NA en otro archivo csv
+            const stringifier = stringify(filasNA, {
+                header: true
+            });
+
+            stringifier.pipe(fs.createWriteStream("filas_con_na.csv"));
+            console.log("Filas con NA agregadas correctamente")
         })
     })
     .catch((error) => console.log(error))
@@ -61,6 +112,30 @@ const alumnoSchema = mongoose.Schema({
 })
 
 const AlumnoModel = mongoose.model("alumnos", alumnoSchema)
+
+/**
+ * Esquemas
+*/
+//0. Crear esquemas y modelos en base a como definimos las colecciones
+//2. Analizar en cada fila los datos que tengo
+// Especialidades
+const EspecialistaSchema = mongoose.Schema({
+    especialista: String,
+    matricula: String
+})
+
+const disponibilidadesSchema = mongoose.Schema({
+    fecha: Date, // fecha
+    hora: String, // hora_inicio:
+    estado: String, // estado_disponibilidad
+    especialista: EspecialistaSchema, // (especialista, matricula)
+    especialidad: String,
+    planesAceptados: String, // plan
+    clinica: String // clinica
+})
+
+const DisponibilidadModel = mongoose.model("disponibilidades", disponibilidadesSchema)
+
 
 app.get("/:id", async (req, res) => {
     console.log(req.query)
