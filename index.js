@@ -4,11 +4,13 @@ import dotenv from "dotenv"
 import fs from "fs"
 import { parse } from "csv-parse"
 import { stringify } from 'csv-stringify'
+import cors from 'cors'
 
 
 // Instancia de express y uso de json en express
 const app = express()
 app.use(express.json())
+app.use(cors())
 
 // Uso de variables de entorno
 dotenv.config()
@@ -43,6 +45,7 @@ mongoose
         app.listen(PORT, async () => {
             console.log(`El servidor esta ejecutandose en el puerto ${PORT} y esta arriba`)
 
+            /*
             // Cargamos los datos
             const filas = []
             const filasNA = []
@@ -99,6 +102,7 @@ mongoose
 
             stringifier.pipe(fs.createWriteStream("filas_con_na.csv"));
             console.log("Filas con NA agregadas correctamente")
+            */
         })
     })
     .catch((error) => console.log(error))
@@ -113,31 +117,7 @@ const alumnoSchema = mongoose.Schema({
 
 const AlumnoModel = mongoose.model("alumnos", alumnoSchema)
 
-/**
- * Esquemas
-*/
-//0. Crear esquemas y modelos en base a como definimos las colecciones
-//2. Analizar en cada fila los datos que tengo
-// Especialidades
-const EspecialistaSchema = mongoose.Schema({
-    especialista: String,
-    matricula: String
-})
-
-const disponibilidadesSchema = mongoose.Schema({
-    fecha: Date, // fecha
-    hora: String, // hora_inicio:
-    estado: String, // estado_disponibilidad
-    especialista: EspecialistaSchema, // (especialista, matricula)
-    especialidad: String,
-    planesAceptados: String, // plan
-    clinica: String // clinica
-})
-
-const DisponibilidadModel = mongoose.model("disponibilidades", disponibilidadesSchema)
-
-
-app.get("/:id", async (req, res) => {
+/*app.get("/:id", async (req, res) => {
     console.log(req.query)
     console.log(req.params)
     res.send("Estamos viendo la API del proyecto con parametros")
@@ -147,7 +127,7 @@ app.get("/:id", async (req, res) => {
 app.get("/", async (req, res) => {
     console.log(req.query)
     res.send("Estamos viendo la API del proyecto")
-})
+})*/
 
 
 // Se obtienen los alumnos
@@ -180,5 +160,57 @@ app.get("/alumnos/:id", async (req, res) => {
     res.send(alumno)
 })
 
+/**
+ * Esquemas
+*/
+//0. Crear esquemas y modelos en base a como definimos las colecciones
+//2. Analizar en cada fila los datos que tengo
+// Especialidades
+const EspecialistaSchema = mongoose.Schema({
+    especialista: String,
+    matricula: String
+})
 
+const disponibilidadesSchema = mongoose.Schema({
+    fecha: Date, // fecha
+    hora: String, // hora_inicio:
+    estado: String, // estado_disponibilidad
+    especialista: EspecialistaSchema, // (especialista, matricula)
+    especialidad: String,
+    planesAceptados: String, // plan
+    clinica: String // clinica
+})
+
+const DisponibilidadModel = mongoose.model("disponibilidades", disponibilidadesSchema)
+
+// Buscar todas las disponibilidades
+app.get("/disponibilidades", async (req, res) => {
+
+    const disponibilidades = await DisponibilidadModel.find()
+    res.json(disponibilidades)
+})
+
+// Buscar disponibilidades por id de especialista
+app.get("/disponibilidades/especialista/:especialistaId", async (req, res) =>{
+
+    //console.log(req.params.especialistaId.toString())
+    //console.log(req.query)
+    const especialistaId = req.params.especialistaId.toString()
+    if (!mongoose.isValidObjectId(especialistaId)) {
+        return res.status(400).send({ message: 'Especialista invalido' });
+    }
+    const dispoPorEscialista = await DisponibilidadModel.find({'especialista._id': especialistaId})
+    res.send(dispoPorEscialista)
+})
+
+// Buscar dispo por nombre de especialista y que devuelva los primeros 15 resultados que encuentre
+app.get("/disponibilidades/especialista/nombre/:nombreEspecialista", async (req, res) =>{
+
+    const especialista = req.params.nombreEspecialista
+/*     if (!mongoose.isValidObjectId(especialistaId)) {
+        return res.status(400).send({ message: 'Especialista invalido' });
+    } */
+    const dispoPorEspecialista = await DisponibilidadModel.find({'especialista.especialista': { $regex: especialista, $options: 'i' }}).limit(15)
+    res.send(dispoPorEspecialista)
+})
 
