@@ -5,6 +5,8 @@ import fs from "fs"
 import { parse } from "csv-parse"
 import { stringify } from 'csv-stringify'
 import cors from 'cors'
+import jwt from "jsonwebtoken"
+import bcrypt from "bcryptjs"
 
 
 // Instancia de express y uso de json en express
@@ -18,6 +20,7 @@ dotenv.config()
 // Configuracion de constantes para tener variables de entorno
 const PORT = process.env.PORT || 8080
 const MONGOURL = process.env.MONGO_URL
+const JWT_SECRET = process.env.JWT_SECRET || "clave-super-secreta";
 
 const camposValidos = (fila) => {
 
@@ -26,7 +29,7 @@ const camposValidos = (fila) => {
     Object.keys(fila).forEach(key => {
         //console.log(key, fila[key]);
         const elementoEvaluado = fila[key]
-        if(elementoEvaluado === "NA") {
+        if (elementoEvaluado === "NA") {
             //console.log("Hay dato NA!")
             todasLasFilasValidas = false
             return false
@@ -131,7 +134,7 @@ app.get("/", async (req, res) => {
 
 
 // Se obtienen los alumnos
-app.get("/alumnos", async (req, res) => {
+app.get("/alumnos", authenticateToken, async (req, res) => {
     const alumnos = await AlumnoModel.find()
     res.json(alumnos)
 })
@@ -191,7 +194,7 @@ app.get("/disponibilidades", async (req, res) => {
 })
 
 // Buscar disponibilidades por id de especialista
-app.get("/disponibilidades/especialista/:especialistaId", async (req, res) =>{
+app.get("/disponibilidades/especialista/:especialistaId", async (req, res) => {
 
     //console.log(req.params.especialistaId.toString())
     //console.log(req.query)
@@ -199,18 +202,130 @@ app.get("/disponibilidades/especialista/:especialistaId", async (req, res) =>{
     if (!mongoose.isValidObjectId(especialistaId)) {
         return res.status(400).send({ message: 'Especialista invalido' });
     }
-    const dispoPorEscialista = await DisponibilidadModel.find({'especialista._id': especialistaId})
+    const dispoPorEscialista = await DisponibilidadModel.find({ 'especialista._id': especialistaId })
     res.send(dispoPorEscialista)
 })
 
 // Buscar dispo por nombre de especialista y que devuelva los primeros 15 resultados que encuentre
-app.get("/disponibilidades/especialista/nombre/:nombreEspecialista", async (req, res) =>{
+app.get("/disponibilidades/especialista/nombre/:nombreEspecialista", async (req, res) => {
 
     const especialista = req.params.nombreEspecialista
-/*     if (!mongoose.isValidObjectId(especialistaId)) {
-        return res.status(400).send({ message: 'Especialista invalido' });
-    } */
-    const dispoPorEspecialista = await DisponibilidadModel.find({'especialista.especialista': { $regex: especialista, $options: 'i' }}).limit(15)
+    /*     if (!mongoose.isValidObjectId(especialistaId)) {
+            return res.status(400).send({ message: 'Especialista invalido' });
+        } */
+    const dispoPorEspecialista = await DisponibilidadModel.find({ 'especialista.especialista': { $regex: especialista, $options: 'i' } }).limit(15)
     res.send(dispoPorEspecialista)
 })
+
+// Usuarios
+// Creamos un esquema de alumnos
+const usuarioSchema = mongoose.Schema({
+    username: String,
+    password: String,
+    role: String
+})
+
+const UsuarioModel = mongoose.model("usuarios", usuarioSchema)
+
+app.post("/usuarios", async (req, res) => {
+
+    console.log(req.body)
+    const nuevoUsuario = {
+        username: req.body.username,
+        password: bcrypt.hashSync(req.body.password, 10),//bcrypt.hashSync("123456", 10),
+        role: "admin"
+    }
+    const usuario = await UsuarioModel.create(nuevoUsuario);
+    res.json(usuario)
+})
+
+// Mock de usuarios
+const users = [
+  {
+    id: 1,
+    username: "admin",
+    // contraseña real: 123456
+    password: bcrypt.hashSync("123456", 10),
+    role: "admin"
+  }
+];
+
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers["authorization"];
+
+  if (!authHeader) {
+    return res.status(401).json({
+      message: "No se envió el token en el header Authorization"
+    });
+  }
+
+  const parts = authHeader.split(" ");
+
+  if (parts.length !== 2 || parts[0] !== "Bearer") {
+    return res.status(401).json({
+      message: "Formato inválido. Debe ser: Bearer <token>"
+    });
+  }
+
+  const token = parts[1];
+
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    req.user = payload;
+    next();
+  } catch (error) {
+    return res.status(403).json({
+      message: "Token inválido o vencido"
+    });
+  }
+}
+
+// Endpoint de login
+app.post("/auth/login", async (req, res) => {
+  const { username, password } = req.body;
+
+  if (!username || !password) {
+    return res.status(400).json({
+      message: "Username y password son obligatorios"
+    });
+  }
+
+  //const user = users.find(u => u.username === username);
+  let user = await UsuarioModel.findOne({ 'username': username })
+
+  if (!user) {
+    console.log("No encontro user")
+    return res.status(401).json({
+      message: "Credenciales inválidas"
+    });
+  }
+
+  console.log(`usuarios: ${user}, ${user.username}`)
+
+  const passwordOk = await bcrypt.compare(password, user.password);
+
+  if (!passwordOk) {
+    return res.status(401).json({
+      message: "Credenciales inválidas"
+    });
+  }
+
+  const token = jwt.sign(
+    {
+      userId: user.id,
+      username: user.username,
+      role: user.role
+    },
+    JWT_SECRET,
+    {
+      expiresIn: "1h"
+    }
+  );
+
+  return res.json({
+    message: "Login correcto",
+    token
+  });
+});
+
 
