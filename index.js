@@ -19,7 +19,7 @@ dotenv.config()
 
 // Configuracion de constantes para tener variables de entorno
 const PORT = process.env.PORT || 8080
-const MONGOURL = process.env.MONGO_URL
+const MONGOURL = process.env.MONGO_URL || "mongodb://localhost:27017/arq_web"
 const JWT_SECRET = process.env.JWT_SECRET || "clave-super-secreta";
 
 const camposValidos = (fila) => {
@@ -47,68 +47,84 @@ mongoose
         // Levantamos el server
         app.listen(PORT, async () => {
             console.log(`El servidor esta ejecutandose en el puerto ${PORT} y esta arriba`)
+            const disponibilidadesCargadas = await hayDisponibilidadesCargadas()
 
-            /*
-            // Cargamos los datos
-            const filas = []
-            const filasNA = []
-            const parser = fs
-                .createReadStream("disponibilidades_prepaga_caba.csv")
-                .pipe(
-                    parse({
-                        columns: true,
-                        delimiter: ","
-                    })
-                );
+            if(!disponibilidadesCargadas) {
 
-            for await (const fila of parser) {
-                filas.push(fila)
+                console.log("Comienzo a leer csv de disponibilidades")
+
+                // Cargamos los datos
+                const filas = []
+                const filasNA = []
+                const parser = fs
+                    .createReadStream("disponibilidades_prepaga_caba.csv")
+                    .pipe(
+                        parse({
+                            columns: true,
+                            delimiter: ","
+                        })
+                    );
+    
+                for await (const fila of parser) {
+                    filas.push(fila)
+                }
+    
+                //1. Iterar el array de filas
+                for (let index = 0; index < filas.length; index++) {
+    
+                    const fila = filas[index];
+                    const nuevaDisponibilidad = {
+                        fecha: fila["fecha"], // fecha
+                        hora: fila.hora_inicio, // hora_inicio:
+                        estado: fila.estado_disponibilidad, // estado_disponibilidad
+                        especialista: {
+                            especialista: fila.especialista,
+                            matricula: fila.matricula
+                        }, // (especialista, matricula)
+                        especialidad: fila.especialidad,
+                        planesAceptados: fila.plan, // plan
+                        clinica: fila.clinica // clinica
+                    }
+    
+                    //console.log(`Nueva disponibilidad: ${nuevaDisponibilidad}`)
+    
+    
+                    //3. Validamos los datos antes de insertarlos
+                    const sonValidosTodosLosCampos = camposValidos(fila)
+                    if (!sonValidosTodosLosCampos) {
+                        filasNA.push(fila)
+                    } else {
+                        //4. Guardar cada una de los documentos
+                        await DisponibilidadModel.create(nuevaDisponibilidad);
+                    }
+    
+                }
+    
+                console.log("Termino de cargar todos los documentos de disponibilidades!")
+                //5. Ver como guardamos las filas no validas (primero guardamos en un array todas las filas y despues las guardamos todas en un archivo)
+                // Cargamos filas con NA en otro archivo csv
+                const stringifier = stringify(filasNA, {
+                    header: true
+                });
+    
+                stringifier.pipe(fs.createWriteStream("filas_con_na.csv"));
+                console.log("Filas con NA agregadas correctamente")
+            } else {
+                console.log("Las disponibilidades ya fueron cargadas previamente. No se volveran a cargar!")
             }
 
-            //1. Iterar el array de filas
-            for (let index = 0; index < filas.length; index++) {
-
-                const fila = filas[index];
-                const nuevaDisponibilidad = {
-                    fecha: fila["fecha"], // fecha
-                    hora: fila.hora_inicio, // hora_inicio:
-                    estado: fila.estado_disponibilidad, // estado_disponibilidad
-                    especialista: {
-                        especialista: fila.especialista,
-                        matricula: fila.matricula
-                    }, // (especialista, matricula)
-                    especialidad: fila.especialidad,
-                    planesAceptados: fila.plan, // plan
-                    clinica: fila.clinica // clinica
-                }
-
-                //console.log(`Nueva disponibilidad: ${nuevaDisponibilidad}`)
-
-
-                //3. Validamos los datos antes de insertarlos
-                const sonValidosTodosLosCampos = camposValidos(fila)
-                if (!sonValidosTodosLosCampos) {
-                    filasNA.push(fila)
-                } else {
-                    //4. Guardar cada una de los documentos
-                    await DisponibilidadModel.create(nuevaDisponibilidad);
-                }
-
-            }
-
-            console.log("Termino de cargar todos los documentos de disponibilidades!")
-            //5. Ver como guardamos las filas no validas (primero guardamos en un array todas las filas y despues las guardamos todas en un archivo)
-            // Cargamos filas con NA en otro archivo csv
-            const stringifier = stringify(filasNA, {
-                header: true
-            });
-
-            stringifier.pipe(fs.createWriteStream("filas_con_na.csv"));
-            console.log("Filas con NA agregadas correctamente")
-            */
         })
     })
     .catch((error) => console.log(error))
+
+const hayDisponibilidadesCargadas = async () => {
+
+    const hayDisponibilidades = await DisponibilidadModel.exists({});
+    if (hayDisponibilidades != null) {
+        return true
+    }
+    return false
+}
 
 // Creamos un esquema de alumnos
 const alumnoSchema = mongoose.Schema({
