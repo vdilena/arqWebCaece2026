@@ -344,4 +344,27 @@ app.post("/auth/login", async (req, res) => {
   });
 });
 
+app.get("/", (req, res) => {
+  res.send("Aplicacion Node Arq Web levantada")
+});
 
+
+app.get("/health", (req, res) => {
+  res.status(200).json({ ok: true });
+});
+
+app.get("/ready", (req, res) => {
+  const mongoConnected = mongoose.connection.readyState === 1;
+
+  if (!mongoConnected) {
+    return res.status(503).json({
+      ok: false,
+      mongo: "disconnected"
+    });
+  }
+
+  res.status(200).json({
+    ok: true,
+    mongo: "connected"
+  });
+});

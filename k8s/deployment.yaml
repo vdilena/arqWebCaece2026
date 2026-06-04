@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: node-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: node-backend
+  template:
+    metadata:
+      labels:
+        app: node-backend
+    spec:
+      containers:
+        - name: node-backend
+          image: us-central1-docker.pkg.dev/GCP_PROJECT_ID/node-gke-repo/node-backend:v1
+          ports:
+            - containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+            - name: MONGO_URL
+              value: "mongodb://mongo-service:27017/arq_web"
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            failureThreshold: 18
+            periodSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 20
+            periodSeconds: 20
